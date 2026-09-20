@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Interaktiver 3D-Seitenwechsel</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none; /* Verhindert Textmarkieren beim Ziehen */
+        }
+        body {
+            background-color: #0b0c10;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* 1. Bühne füllt 100% des Bildschirms */
+        .viewport {
+            width: 100vw;
+            height: 100vh;
+            perspective: 1000px;
+            perspective-origin: center center;
+            overflow: hidden;
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: grab;
+        }
+        .viewport:active {
+            cursor: grabbing;
+        }
+
+        /* 2. Drehachse exakt in Bildschirmmitte */
+        .cube {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            transform-style: preserve-3d;
+            will-change: transform;
+        }
+
+        /* 3. Vollflächige Seiten */
+        .page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            text-align: center;
+            backface-visibility: hidden;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.3);
+        }
+
+        .page-1 {
+            background: linear-gradient(135deg, #1f4037, #99f2c8);
+            color: #0d2319;
+            transform: rotateY(0deg) translateZ(50vw);
+        }
+        .page-2 {
+            background: linear-gradient(135deg, #4b1248, #f0c27b);
+            color: #fff;
+            transform: rotateY(90deg) translateZ(50vw);
+        }
+        .page-3 {
+            background: linear-gradient(135deg, #141e30, #243b55);
+            color: #fff;
+            transform: rotateY(180deg) translateZ(50vw);
+        }
+        .page-4 {
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: #fff;
+            transform: rotateY(270deg) translateZ(50vw);
+        }
+
+        h1 {
+            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            margin-bottom: 16px;
+            pointer-events: none;
+        }
+        p {
+            font-size: clamp(1.1rem, 2.5vw, 1.5rem);
+            max-width: 650px;
+            line-height: 1.6;
+            pointer-events: none;
+            opacity: 0.95;
+        }
+        .hint {
+            margin-top: 25px;
+            font-size: 0.95rem;
+            padding: 8px 18px;
+            background: rgba(0,0,0,0.25);
+            border-radius: 20px;
+            pointer-events: none;
+        }
+
+        /* 4. Fest verankertes Menü (bleibt immer sichtbar im Vordergrund) */
+        nav {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            z-index: 999; /* Garantiert über der 3D-Welt */
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 14px;
+            border-radius: 40px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        nav button {
+            background: transparent;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        nav button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        nav button.active {
+            background: #fff;
+            color: #111;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="viewport" id="viewport">
+        <div class="cube" id="cube">
+            <section class="page page-1">
+                <h1>01. Startseite</h1>
+                <p>Ziehe mit der Maus oder dem Finger nach links oder rechts, um wie in einem Buch durch die Seiten zu blättern.</p>
+                <span class="hint">← Ziehen zum Drehen →</span>
+            </section>
+            <section class="page page-2">
+                <h1>02. Über uns</h1>
+                <p>Der Würfel bleibt während des Ziehens direkt an deinem Cursor oder Finger gekoppelt und rastet beim Loslassen sauber ein.</p>
+                <span class="hint">← Ziehen zum Drehen →</span>
+            </section>
+            <section class="page page-3">
+                <h1>03. Projekte</h1>
+                <p>Du kannst die Seite millimetergenau anhalten oder schwungvoll weiterwischen.</p>
+                <span class="hint">← Ziehen zum Drehen →</span>
+            </section>
+            <section class="page page-4">
+                <h1>04. Kontakt</h1>
+                <p>Über das fixierte Menü unten kannst du trotzdem jederzeit direkt zu jeder Seite springen.</p>
+                <span class="hint">← Ziehen zum Drehen →</span>
+            </section>
+        </div>
+    </div>
+
+    <!-- Fixiertes Menü -->
+    <nav id="navbar">
+        <button class="active" onclick="goToPageIndex(0)">Start</button>
+        <button onclick="goToPageIndex(1)">Über uns</button>
+        <button onclick="goToPageIndex(2)">Projekte</button>
+        <button onclick="goToPageIndex(3)">Kontakt</button>
+    </nav>
+
+    <script>
+        const viewport = document.getElementById('viewport');
+        const cube = document.getElementById('cube');
+        const buttons = document.querySelectorAll('#navbar button');
+
+        let isDragging = false;
+        let startX = 0;
+        let currentAngle = 0;   // Aktueller Winkel
+        let previousAngle = 0;  // Winkel vor dem Drag
+        let currentPage = 0;
+
+        // Position des Würfels aktualisieren (inkl. Tiefenkorrektur damit er vollflächig bleibt)
+        function updateTransform(angle, smooth = false) {
+            cube.style.transition = smooth ? 'transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none';
+            cube.style.transform = `translateZ(-50vw) rotateY(${angle}deg)`;
+        }
+
+        // Initiale Position
+        updateTransform(0, false);
+
+        // Menü-Indikator aktualisieren
+        function updateMenu(pageIndex) {
+            // Normalisiere Index auf 0..3
+            const normalized = ((pageIndex % 4) + 4) % 4;
+            buttons.forEach((btn, idx) => {
+                btn.classList.toggle('active', idx === normalized);
+            });
+        }
+
+        // --- GESTENSTEUERUNG (Maus & Touch) ---
+        function onPointerDown(e) {
+            isDragging = true;
+            startX = e.clientX || (e.touches && e.touches[0].clientX);
+            previousAngle = currentAngle;
+            cube.style.transition = 'none'; // Keine Verzögerung beim Ziehen
+        }
+
+        function onPointerMove(e) {
+            if (!isDragging) return;
+            const currentX = e.clientX || (e.touches && e.touches[0].clientX);
+            const deltaX = currentX - startX;
+
+            // 1 Pixel Ziehen = Grad-Anpassung proportional zur Bildschirmbreite
+            const angleDelta = (deltaX / window.innerWidth) * 90;
+            currentAngle = previousAngle + angleDelta;
+
+            updateTransform(currentAngle, false);
+        }
+
+        function onPointerUp() {
+            if (!isDragging) return;
+            isDragging = false;
+
+            // Nächste 90-Grad-Position berechnen und sanft einrasten
+            const snapIndex = Math.round(currentAngle / 90);
+            currentAngle = snapIndex * 90;
+            
+            updateTransform(currentAngle, true);
+            
+            // Seite berechnen: Im negativen Drehsinn geht es vorwärts (Index drehen)
+            currentPage = -snapIndex;
+            updateMenu(currentPage);
+        }
+
+        // Event Listener für Maus
+        viewport.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+
+        // Event Listener für Touch (Smartphones/Tablets)
+        viewport.addEventListener('touchstart', onPointerDown, { passive: true });
+        window.addEventListener('touchmove', onPointerMove, { passive: true });
+        window.addEventListener('touchend', onPointerUp);
+
+        // Menü-Klick-Navigation
+        function goToPageIndex(targetIndex) {
+            const currentNormalized = ((currentPage % 4) + 4) % 4;
+            let diff = targetIndex - currentNormalized;
+
+            // Kürzesten Weg auf dem Ring wählen
+            if (diff > 2) diff -= 4;
+            if (diff < -2) diff += 4;
+
+            currentPage += diff;
+            currentAngle = -currentPage * 90;
+
+            updateTransform(currentAngle, true);
+            updateMenu(currentPage);
+        }
+    </script>
+</body>
+</html>
