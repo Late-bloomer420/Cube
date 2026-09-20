@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Interaktiver 3D-Seitenwechsel</title>
+    <title>3D Würfel & Buch Navigation</title>
     <style>
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            user-select: none; /* Verhindert Textmarkieren beim Ziehen */
+            user-select: none;
         }
         body {
             background-color: #0b0c10;
@@ -20,11 +20,41 @@
             height: 100vh;
         }
 
-        /* 1. Bühne füllt 100% des Bildschirms */
+        /* Modus-Umschalter oben */
+        .mode-switch {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            background: rgba(20, 20, 25, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            padding: 4px;
+            z-index: 1000;
+            backdrop-filter: blur(12px);
+        }
+        .mode-btn {
+            background: transparent;
+            color: #aaa;
+            border: none;
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .mode-btn.active {
+            background: #fff;
+            color: #111;
+        }
+
+        /* 3D-Bühne */
         .viewport {
             width: 100vw;
             height: 100vh;
-            perspective: 1000px;
+            perspective: 1200px;
             perspective-origin: center center;
             overflow: hidden;
             position: absolute;
@@ -36,8 +66,7 @@
             cursor: grabbing;
         }
 
-        /* 2. Drehachse exakt in Bildschirmmitte */
-        .cube {
+        .container-3d {
             width: 100%;
             height: 100%;
             position: absolute;
@@ -45,7 +74,7 @@
             will-change: transform;
         }
 
-        /* 3. Vollflächige Seiten */
+        /* Seiten-Layout */
         .page {
             position: absolute;
             top: 0;
@@ -59,213 +88,285 @@
             padding: 40px;
             text-align: center;
             backface-visibility: hidden;
-            box-shadow: inset 0 0 100px rgba(0,0,0,0.3);
         }
 
-        .page-1 {
-            background: linear-gradient(135deg, #1f4037, #99f2c8);
-            color: #0d2319;
-            transform: rotateY(0deg) translateZ(50vw);
+        /* Scrollbarer Bereich auf Seite 2 */
+        .scrollable-card {
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(8px);
+            border-radius: 16px;
+            max-width: 650px;
+            width: 90%;
+            max-height: 55vh;
+            padding: 24px;
+            overflow-y: auto;
+            text-align: left;
+            user-select: text;
+            cursor: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.4) transparent;
         }
-        .page-2 {
-            background: linear-gradient(135deg, #4b1248, #f0c27b);
-            color: #fff;
-            transform: rotateY(90deg) translateZ(50vw);
+        .scrollable-card p {
+            font-size: 1.05rem;
+            line-height: 1.7;
+            margin-bottom: 16px;
+            color: #eee;
         }
-        .page-3 {
-            background: linear-gradient(135deg, #141e30, #243b55);
-            color: #fff;
-            transform: rotateY(180deg) translateZ(50vw);
+        .scrollable-card h2 {
+            font-size: 1.4rem;
+            margin-bottom: 12px;
+            color: #f0c27b;
         }
-        .page-4 {
-            background: linear-gradient(135deg, #ff416c, #ff4b2b);
-            color: #fff;
-            transform: rotateY(270deg) translateZ(50vw);
-        }
+        /* Farbwelten */
+        .page-1 { background: linear-gradient(135deg, #1f4037, #99f2c8); color: #0d2319; }
+        .page-2 { background: linear-gradient(135deg, #4b1248, #2a0845); color: #fff; }
+        .page-3 { background: linear-gradient(135deg, #141e30, #243b55); color: #fff; }
+        .page-4 { background: linear-gradient(135deg, #e65c00, #f9d423); color: #fff; }
 
         h1 {
-            font-size: clamp(2.5rem, 6vw, 4.5rem);
+            font-size: clamp(2rem, 5vw, 3.5rem);
             margin-bottom: 16px;
             pointer-events: none;
         }
-        p {
-            font-size: clamp(1.1rem, 2.5vw, 1.5rem);
-            max-width: 650px;
+        .page-desc {
+            font-size: clamp(1rem, 2vw, 1.25rem);
+            max-width: 600px;
             line-height: 1.6;
-            pointer-events: none;
-            opacity: 0.95;
-        }
-        .hint {
-            margin-top: 25px;
-            font-size: 0.95rem;
-            padding: 8px 18px;
-            background: rgba(0,0,0,0.25);
-            border-radius: 20px;
+            margin-bottom: 20px;
             pointer-events: none;
         }
 
-        /* 4. Fest verankertes Menü (bleibt immer sichtbar im Vordergrund) */
+        /* Würfel-Modus */
+        .mode-cube .page-1 { transform: rotateY(0deg) translateZ(50vw); }
+        .mode-cube .page-2 { transform: rotateY(90deg) translateZ(50vw); }
+        .mode-cube .page-3 { transform: rotateY(180deg) translateZ(50vw); }
+        .mode-cube .page-4 { transform: rotateY(270deg) translateZ(50vw); }
+
+        /* Buch-Modus */
+        .mode-book .container-3d {
+            transform: none !important;
+        }
+        .mode-book .page {
+            transform-origin: left center;
+            transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), z-index 0s 0.3s;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+        }
+        .mode-book .page-1 { z-index: 4; }
+        .mode-book .page-2 { z-index: 3; }
+        .mode-book .page-3 { z-index: 2; }
+        .mode-book .page-4 { z-index: 1; }
+        .mode-book .page.flipped {
+            transform: rotateY(-180deg);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Menü unten */
         nav {
             position: fixed;
-            bottom: 30px;
+            bottom: 25px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 12px;
-            z-index: 999; /* Garantiert über der 3D-Welt */
-            background: rgba(0, 0, 0, 0.5);
+            gap: 10px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.6);
             padding: 8px 14px;
             border-radius: 40px;
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
-
         nav button {
             background: transparent;
             color: #fff;
             border: none;
-            padding: 10px 20px;
-            font-size: 0.95rem;
+            padding: 10px 18px;
+            font-size: 0.9rem;
             font-weight: 600;
-            border-radius: 25px;
+            border-radius: 20px;
             cursor: pointer;
             transition: background 0.3s, color 0.3s;
         }
-
-        nav button:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        nav button.active {
-            background: #fff;
-            color: #111;
-        }
+        nav button:hover { background: rgba(255, 255, 255, 0.2); }
+        nav button.active { background: #fff; color: #111; }
     </style>
 </head>
 <body>
 
+    <div class="mode-switch">
+        <button id="cubeBtn" class="mode-btn active" onclick="switchMode('cube')">Würfel-Modus</button>
+        <button id="bookBtn" class="mode-btn" onclick="switchMode('book')">Buch-Modus</button>
+    </div>
+
     <div class="viewport" id="viewport">
-        <div class="cube" id="cube">
-            <section class="page page-1">
-                <h1>01. Startseite</h1>
-                <p>Ziehe mit der Maus oder dem Finger nach links oder rechts, um wie in einem Buch durch die Seiten zu blättern.</p>
-                <span class="hint">← Ziehen zum Drehen →</span>
+        <div class="container-3d mode-cube" id="stage">
+            
+            <section class="page page-1" id="p0">
+                <h1>01. Start</h1>
+                <p class="page-desc">Ziehe mit der Maus oder dem Finger horizontal, um zur nächsten Seite zu wechseln.</p>
             </section>
-            <section class="page page-2">
+
+            <section class="page page-2" id="p1">
                 <h1>02. Über uns</h1>
-                <p>Der Würfel bleibt während des Ziehens direkt an deinem Cursor oder Finger gekoppelt und rastet beim Loslassen sauber ein.</p>
-                <span class="hint">← Ziehen zum Drehen →</span>
+                <div class="scrollable-card" id="scrollBox">
+                    <h2>Scrollbarer Textbereich</h2>
+                    <p>Hier kannst du Text, Bilder oder Artikel einbetten. Beim vertikalen Scrollen in dieser Box bleibt die Drehung pausiert.</p>
+                    <p>Horizontale Wischbewegungen außerhalb oder deutliche Ziehgesten blättern zur nächsten Würfelfläche oder Buchseite.</p>
+                    <h2>Zweiter Abschnitt</h2>
+                    <p>Die Trennung von vertikalem Text-Scrollen und horizontalen Übergängen verhindert Ruckeln und versehentliches Wechseln.</p>
+                    <h2>Dritter Abschnitt</h2>
+                    <p>Inhalte bleiben lesbar und markierbar, während die restliche Szene räumlich dreidimensional reagiert.</p>
+                </div>
             </section>
-            <section class="page page-3">
-                <h1>03. Projekte</h1>
-                <p>Du kannst die Seite millimetergenau anhalten oder schwungvoll weiterwischen.</p>
-                <span class="hint">← Ziehen zum Drehen →</span>
+
+            <section class="page page-3" id="p2">
+                <h1>03. Galerie & Projekte</h1>
+                <p class="page-desc">Hier können Showcase-Karten oder Portfolio-Elemente platziert werden.</p>
             </section>
-            <section class="page page-4">
+
+            <section class="page page-4" id="p3">
                 <h1>04. Kontakt</h1>
-                <p>Über das fixierte Menü unten kannst du trotzdem jederzeit direkt zu jeder Seite springen.</p>
-                <span class="hint">← Ziehen zum Drehen →</span>
+                <p class="page-desc">Erreiche uns jederzeit direkt über dieses Kontaktformular oder Impressum.</p>
             </section>
+
         </div>
     </div>
 
-    <!-- Fixiertes Menü -->
     <nav id="navbar">
-        <button class="active" onclick="goToPageIndex(0)">Start</button>
-        <button onclick="goToPageIndex(1)">Über uns</button>
-        <button onclick="goToPageIndex(2)">Projekte</button>
-        <button onclick="goToPageIndex(3)">Kontakt</button>
+        <button class="active" onclick="goToPage(0)">01. Start</button>
+        <button onclick="goToPage(1)">02. Über uns</button>
+        <button onclick="goToPage(2)">03. Projekte</button>
+        <button onclick="goToPage(3)">04. Kontakt</button>
     </nav>
-
     <script>
         const viewport = document.getElementById('viewport');
-        const cube = document.getElementById('cube');
-        const buttons = document.querySelectorAll('#navbar button');
+        const stage = document.getElementById('stage');
+        const scrollBox = document.getElementById('scrollBox');
+        const navButtons = document.querySelectorAll('#navbar button');
+        const cubeBtn = document.getElementById('cubeBtn');
+        const bookBtn = document.getElementById('bookBtn');
 
+        let currentMode = 'cube';
         let isDragging = false;
         let startX = 0;
-        let currentAngle = 0;   // Aktueller Winkel
-        let previousAngle = 0;  // Winkel vor dem Drag
+        let startY = 0;
+        let currentAngle = 0;
+        let previousAngle = 0;
         let currentPage = 0;
 
-        // Position des Würfels aktualisieren (inkl. Tiefenkorrektur damit er vollflächig bleibt)
-        function updateTransform(angle, smooth = false) {
-            cube.style.transition = smooth ? 'transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none';
-            cube.style.transform = `translateZ(-50vw) rotateY(${angle}deg)`;
+        function switchMode(newMode) {
+            currentMode = newMode;
+            if (newMode === 'cube') {
+                cubeBtn.classList.add('active');
+                bookBtn.classList.remove('active');
+                stage.className = 'container-3d mode-cube';
+                document.querySelectorAll('.page').forEach(p => p.classList.remove('flipped'));
+                goToPage(currentPage);
+            } else {
+                bookBtn.classList.add('active');
+                cubeBtn.classList.remove('active');
+                stage.className = 'container-3d mode-book';
+                applyBookLayout(currentPage);
+            }
         }
 
-        // Initiale Position
-        updateTransform(0, false);
+        function updateCubeTransform(angle, smooth = false) {
+            stage.style.transition = smooth ? 'transform 0.55s cubic-bezier(0.2, 0.9, 0.3, 1)' : 'none';
+            stage.style.transform = `translateZ(-50vw) rotateY(${angle}deg)`;
+        }
 
-        // Menü-Indikator aktualisieren
-        function updateMenu(pageIndex) {
-            // Normalisiere Index auf 0..3
-            const normalized = ((pageIndex % 4) + 4) % 4;
-            buttons.forEach((btn, idx) => {
+        function applyBookLayout(pageIndex) {
+            for (let i = 0; i < 4; i++) {
+                const pageEl = document.getElementById(`p${i}`);
+                if (i < pageIndex) {
+                    pageEl.classList.add('flipped');
+                } else {
+                    pageEl.classList.remove('flipped');
+                }
+            }
+        }
+
+        function updateMenu(index) {
+            const normalized = ((index % 4) + 4) % 4;
+            navButtons.forEach((btn, idx) => {
                 btn.classList.toggle('active', idx === normalized);
             });
         }
 
-        // --- GESTENSTEUERUNG (Maus & Touch) ---
+        function goToPage(targetIndex) {
+            currentPage = Math.max(0, Math.min(3, targetIndex));
+            if (currentMode === 'cube') {
+                currentAngle = -currentPage * 90;
+                updateCubeTransform(currentAngle, true);
+            } else {
+                applyBookLayout(currentPage);
+            }
+            updateMenu(currentPage);
+        }
+
         function onPointerDown(e) {
+            startX = e.clientX || (e.touches && e.touches.clientX);
+            startY = e.clientY || (e.touches && e.touches.clientY);
+            
             isDragging = true;
-            startX = e.clientX || (e.touches && e.touches[0].clientX);
             previousAngle = currentAngle;
-            cube.style.transition = 'none'; // Keine Verzögerung beim Ziehen
+            if (currentMode === 'cube') {
+                stage.style.transition = 'none';
+            }
         }
 
         function onPointerMove(e) {
             if (!isDragging) return;
-            const currentX = e.clientX || (e.touches && e.touches[0].clientX);
+            const currentX = e.clientX || (e.touches && e.touches.clientX);
+            const currentY = e.clientY || (e.touches && e.touches.clientY);
+
             const deltaX = currentX - startX;
+            const deltaY = currentY - startY;
 
-            // 1 Pixel Ziehen = Grad-Anpassung proportional zur Bildschirmbreite
-            const angleDelta = (deltaX / window.innerWidth) * 90;
-            currentAngle = previousAngle + angleDelta;
+            // Vertikales Scrollen in der Box ignorieren
+            if (scrollBox.contains(e.target) && Math.abs(deltaY) > Math.abs(deltaX)) {
+                return;
+            }
 
-            updateTransform(currentAngle, false);
+            if (currentMode === 'cube') {
+                const angleDelta = (deltaX / window.innerWidth) * 90;
+                currentAngle = previousAngle + angleDelta;
+                updateCubeTransform(currentAngle, false);
+            }
         }
 
-        function onPointerUp() {
+        function onPointerUp(e) {
             if (!isDragging) return;
             isDragging = false;
 
-            // Nächste 90-Grad-Position berechnen und sanft einrasten
-            const snapIndex = Math.round(currentAngle / 90);
-            currentAngle = snapIndex * 90;
-            
-            updateTransform(currentAngle, true);
-            
-            // Seite berechnen: Im negativen Drehsinn geht es vorwärts (Index drehen)
-            currentPage = -snapIndex;
-            updateMenu(currentPage);
+            const endX = e.clientX || (e.changedTouches && e.changedTouches.clientX);
+            const deltaX = endX - startX;
+
+            if (currentMode === 'cube') {
+                const snapIndex = Math.round(currentAngle / 90);
+                currentAngle = snapIndex * 90;
+                updateCubeTransform(currentAngle, true);
+                currentPage = Math.max(0, Math.min(3, -snapIndex));
+                updateMenu(currentPage);
+            } else {
+                if (deltaX < -50 && currentPage < 3) {
+                    goToPage(currentPage + 1);
+                } else if (deltaX > 50 && currentPage > 0) {
+                    goToPage(currentPage - 1);
+                }
+            }
         }
 
-        // Event Listener für Maus
         viewport.addEventListener('mousedown', onPointerDown);
         window.addEventListener('mousemove', onPointerMove);
         window.addEventListener('mouseup', onPointerUp);
 
-        // Event Listener für Touch (Smartphones/Tablets)
         viewport.addEventListener('touchstart', onPointerDown, { passive: true });
         window.addEventListener('touchmove', onPointerMove, { passive: true });
         window.addEventListener('touchend', onPointerUp);
 
-        // Menü-Klick-Navigation
-        function goToPageIndex(targetIndex) {
-            const currentNormalized = ((currentPage % 4) + 4) % 4;
-            let diff = targetIndex - currentNormalized;
-
-            // Kürzesten Weg auf dem Ring wählen
-            if (diff > 2) diff -= 4;
-            if (diff < -2) diff += 4;
-
-            currentPage += diff;
-            currentAngle = -currentPage * 90;
-
-            updateTransform(currentAngle, true);
-            updateMenu(currentPage);
-        }
+        updateCubeTransform(0, false);
     </script>
 </body>
 </html>
